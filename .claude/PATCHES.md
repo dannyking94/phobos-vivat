@@ -214,3 +214,63 @@ edit needs to be made in the installed copy at
 ### Upstream
 
 Same tracker as patches #1 and #2.
+
+## 4. Blender 5.x Principled BSDF input names (b41Export gate)
+
+**File:** `phobos/blender/io/blender2phobos.py`
+**Function:** `deriveMaterial` (line 70)
+**Date applied:** 2026-05-26
+**Blender version:** 5.1.2
+**Phobos version:** master (post-2.1.0)
+
+### Symptom
+
+Exporting a model (Phobos sidebar → Export) raised:
+
+```
+KeyError: 'bpy_prop_collection[key]: key "Specular" not found'
+```
+
+from `deriveMaterial`, while trying to read
+`Principled BSDF.inputs["Specular"].default_value`.
+
+### Cause
+
+The `b41Export` flag was defined as:
+
+```python
+b41Export = bpy.app.version[0] == 4 and bpy.app.version[1] >= 1
+```
+
+This is true only for Blender 4.1–4.x. On Blender 5.x it falls into the
+`else` branch, which references the pre-4.1 input names `"Specular"` and
+`"Emission"`. Those were renamed to `"Specular IOR Level"` and
+`"Emission Color"` in Blender 4.1 and the old names no longer exist in 5.x,
+so the lookup raises `KeyError`.
+
+### Fix
+
+Change the comparison to a tuple comparison so 5.x (and later) is also
+treated as "post-4.1":
+
+```python
+b41Export = bpy.app.version >= (4, 1)
+```
+
+`bpy.app.version` is a `(major, minor, patch)` tuple, so this evaluates to
+`True` for 4.1, 4.2, …, 5.0, 5.1, etc.
+
+### Re-applying after a Phobos update
+
+```bash
+grep -n "b41Export = bpy.app.version\[0\] == 4" ~/Apps/blender/phobos/phobos/blender/io/blender2phobos.py
+```
+
+If that returns a hit, replace with the tuple comparison. Same edit needs
+to be made in the installed copy at
+`~/.config/blender/5.1/scripts/addons/phobos/blender/io/blender2phobos.py`.
+
+### Upstream
+
+Same tracker as patches #1–#3. Worth filing as a single "Blender 5.x
+compatibility" issue with all four patches.
