@@ -1629,7 +1629,8 @@ class DefineJointConstraintsOperator(Operator):
         name='Flip Visual Axis', default=False, description='Flip calculated axis'
     )
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.sRefBody = False  # Show gearbox options: reference body drop down and gearbox ratio
         self.sAxis = False  # Show first axis
         self.sLimit = False  # Show axis limits
