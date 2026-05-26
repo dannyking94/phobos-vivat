@@ -274,3 +274,62 @@ to be made in the installed copy at
 
 Same tracker as patches #1–#3. Worth filing as a single "Blender 5.x
 compatibility" issue with all four patches.
+
+## 5. Create Collision Object(s) shows no dialog
+
+**File:** `phobos/blender/operators/editing.py`
+**Class:** `CreateCollisionObjects` (around line 1276)
+**Date applied:** 2026-05-26
+**Blender version:** 5.1.2 (UX issue, version-independent)
+**Phobos version:** master (post-2.1.0)
+
+### Symptom
+
+Clicking "Create Collision Object(s)" in the Phobos sidebar runs the
+operator immediately with the default `Collision Type = box` and never
+asks the user. The only ways to change the type were:
+
+1. Press F9 right after the operator runs (Blender's "Adjust Last
+   Operation" panel), or
+2. Call the operator from the Python console with
+   `bpy.ops.phobos.create_collision_objects(property_colltype='cylinder')`.
+
+Neither is discoverable, and a wheel collision created as a box is wrong
+for almost any AMR/robot.
+
+### Cause
+
+`CreateCollisionObjects` defined `execute` but no `invoke`. Without
+`invoke`, Blender calls `execute` directly at the property defaults and
+never displays a dialog. Other Phobos operators (e.g. `SetGeometryType`,
+`GenerateInertialObjectsOperator`) do define `invoke` and call
+`invoke_props_dialog`, so they pop up correctly.
+
+### Fix
+
+Add a minimal `invoke` method that opens a props dialog:
+
+```python
+def invoke(self, context, event):
+    return context.window_manager.invoke_props_dialog(self, width=300)
+```
+
+Place it just above `execute`. The existing `property_colltype` EnumProperty
+is automatically rendered in the dialog because the operator has no
+custom `draw` method — Blender falls back to drawing all annotated
+properties.
+
+### Re-applying after a Phobos update
+
+```bash
+grep -n "class CreateCollisionObjects" ~/Apps/blender/phobos/phobos/blender/operators/editing.py
+```
+
+Then inspect the class — if there's no `invoke` method, add the snippet
+above. Same edit needs to be made in the installed copy at
+`~/.config/blender/5.1/scripts/addons/phobos/blender/operators/editing.py`.
+
+### Upstream
+
+This is a pure UX fix, not version-specific. Worth a small standalone PR
+to dfki-ric/phobos.

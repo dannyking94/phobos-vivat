@@ -1290,6 +1290,9 @@ class CreateCollisionObjects(Operator):
     #     name='Optimize', default=False, description="Whether you want to add an improved sized and oriented primitive"
     # )
 
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self, width=300)
+
     def execute(self, context):
         """
 
