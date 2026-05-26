@@ -206,7 +206,11 @@ def setJointConstraints(
     joint['joint/limits/lower2'] = lower2
     joint['joint/limits/upper2'] = upper2
     joint.data.bones.active = joint.pose.bones[0].bone
-    joint.data.bones.active.select = True
+    # Blender 5.x removed Bone.select; setting bones.active above is enough for the constraint ops that follow.
+    try:
+        joint.data.bones.active.select = True
+    except AttributeError:
+        pass
     remove_screwdrivers(joint)
 
     if jointtype == 'revolute':
