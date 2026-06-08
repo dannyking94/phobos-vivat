@@ -315,8 +315,11 @@ def selectObjects(objects, clear=True, active=-1):
 
     """
     # if no object is active, object mode can't be toggled
-    if bpy.context.view_layer.objects.active:
-        bpy.ops.object.mode_set(mode='OBJECT')
+    if bpy.context.view_layer.objects.active and bpy.context.active_object:
+        try:
+            bpy.ops.object.mode_set(mode='OBJECT')
+        except RuntimeError:  # active object not in current context (e.g. excluded collection)
+            pass
     if clear:
         bpy.ops.object.select_all(action='DESELECT')
     for obj in objects:

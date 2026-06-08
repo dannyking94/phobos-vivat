@@ -593,7 +593,7 @@ def validateInertiaData(obj, *args, adjust=False):
     # [TODO v2.1.0] REVIEW this
     expsetting = 10**(-getExpSettings().urdfDecimalPlaces)
 
-    if obj.phobostype != 'inertial':
+    if not isinstance(obj, dict) and obj.phobostype != 'inertial':
         errors.append(
             ValidateMessage(
                 "Object '{0}' is not of phobostype 'inertial'.".format(obj.name),

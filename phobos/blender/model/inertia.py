@@ -131,7 +131,7 @@ def fuse_inertia_data(inertials):
 
     # Check for an empty list -> No inertials to fuse
     if not inertials:
-        return 1e-3, [0.0, 0.0, 0.0], numpy.diag([1e-3, 1e-3, 1e-3])
+        return 1e-3, mathutils.Vector((0.0, 0.0, 0.0)), numpy.diag([1e-3, 1e-3, 1e-3])
 
     fused_inertia = numpy.zeros((3, 3))
     fused_com = numpy.zeros((1, 3))

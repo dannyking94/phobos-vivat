@@ -333,3 +333,172 @@ above. Same edit needs to be made in the installed copy at
 
 This is a pure UX fix, not version-specific. Worth a small standalone PR
 to dfki-ric/phobos.
+
+## 6. Inertial creation: `fuse_inertia_data` returns COM as a list
+
+**File:** `phobos/blender/model/inertia.py`
+**Function:** `fuse_inertia_data` (line 134, the no-inertials early return)
+**Date applied:** 2026-06-08
+**Blender version:** 5.1.2
+**Phobos version:** master (post-2.1.0)
+
+### Symptom
+
+Selecting (or having active) a link object that has no inertial child with
+inertia data — e.g. a freshly duplicated link/visual — makes the Phobos
+sidebar crash on every redraw:
+
+```
+File ".../blender/io/blender2phobos.py", line 418, in deriveLink
+    com.x = com.x*obj.scale[0]
+AttributeError: 'list' object has no attribute 'x'
+```
+
+### Cause
+
+`deriveLink` calls `fuse_inertia_data` and then does `com.x`, expecting a
+`mathutils.Vector`. The normal path returns a `Vector` (from
+`combine_com_3x3`), but the early return when there are no inertials to fuse
+returned a plain Python list:
+
+```python
+if not inertials:
+    return 1e-3, [0.0, 0.0, 0.0], numpy.diag([1e-3, 1e-3, 1e-3])
+```
+
+A list has no `.x`, so the GUI draw throws.
+
+### Fix
+
+Return a `mathutils.Vector` so the type matches the success path
+(`mathutils` is already imported in the file):
+
+```python
+if not inertials:
+    return 1e-3, mathutils.Vector((0.0, 0.0, 0.0)), numpy.diag([1e-3, 1e-3, 1e-3])
+```
+
+### Re-applying after a Phobos update
+
+```bash
+grep -n "return 1e-3, \[0.0, 0.0, 0.0\], numpy.diag" ~/Apps/blender/phobos/phobos/blender/model/inertia.py
+```
+
+If that returns a hit, swap the list for `mathutils.Vector((0.0, 0.0, 0.0))`.
+Same edit in the installed copy at
+`~/.config/blender/5.1/scripts/addons/phobos/blender/model/inertia.py`.
+
+### Upstream
+
+Same tracker as patches #1–#5.
+
+## 7. Inertial creation: `validateInertiaData` calls `.phobostype` on a dict
+
+**File:** `phobos/blender/utils/validation.py`
+**Function:** `validateInertiaData` (line 596)
+**Date applied:** 2026-06-08
+**Blender version:** 5.1.2
+**Phobos version:** master (post-2.1.0)
+
+### Symptom
+
+Running "Create Inertial" (which passes a freshly built inertia dictionary)
+raised:
+
+```
+File ".../blender/utils/validation.py", line 596, in validateInertiaData
+    if obj.phobostype != 'inertial':
+AttributeError: 'dict' object has no attribute 'phobostype'
+```
+
+### Cause
+
+`validateInertiaData` is documented to accept *either* a dict or a Blender
+object, and branches on `isinstance(obj, dict)` further down. But the
+phobostype check at the top ran unconditionally, before that branch, so a
+dict input crashes immediately:
+
+```python
+if obj.phobostype != 'inertial':
+    ...
+```
+
+### Fix
+
+Guard the object-only check so dicts skip it and fall through to the
+existing dict-validation path:
+
+```python
+if not isinstance(obj, dict) and obj.phobostype != 'inertial':
+    ...
+```
+
+### Re-applying after a Phobos update
+
+```bash
+grep -n "if obj.phobostype != 'inertial':" ~/Apps/blender/phobos/phobos/blender/utils/validation.py
+```
+
+If that returns a hit inside `validateInertiaData`, prepend
+`not isinstance(obj, dict) and`. Same edit in the installed copy at
+`~/.config/blender/5.1/scripts/addons/phobos/blender/utils/validation.py`.
+
+### Upstream
+
+Same tracker as patches #1–#5.
+
+## 8. Inertial creation: `selectObjects` `mode_set` with no usable active object
+
+**File:** `phobos/blender/utils/selection.py`
+**Function:** `selectObjects` (line 318)
+**Date applied:** 2026-06-08
+**Blender version:** 5.1.2
+**Phobos version:** master (post-2.1.0)
+
+### Symptom
+
+Finishing "Create Inertial" raised:
+
+```
+File ".../blender/utils/selection.py", line 319, in selectObjects
+    bpy.ops.object.mode_set(mode='OBJECT')
+RuntimeError: Operator bpy.ops.object.mode_set.poll() Context missing active object
+```
+
+### Cause
+
+`createInertial` makes the inertial box in the `inertial` collection, then
+calls `selectObjects`, which tries to force Object Mode. The guard only
+checked `view_layer.objects.active` — a reference that can be stale or point
+to an object not present in the active context (e.g. an excluded/hidden
+collection) — while `mode_set.poll()` checks `context.active_object`, which
+is `None`. So the guard passes but the operator's poll fails.
+
+### Fix
+
+Also require `context.active_object`, and swallow the `RuntimeError`
+defensively (the same function already try/excepts `select_set` a few lines
+below for an analogous reason):
+
+```python
+if bpy.context.view_layer.objects.active and bpy.context.active_object:
+    try:
+        bpy.ops.object.mode_set(mode='OBJECT')
+    except RuntimeError:  # active object not in current context (e.g. excluded collection)
+        pass
+```
+
+### Re-applying after a Phobos update
+
+```bash
+grep -n "if bpy.context.view_layer.objects.active:" ~/Apps/blender/phobos/phobos/blender/utils/selection.py
+```
+
+If that returns a hit in `selectObjects`, apply the guard + try/except above.
+Same edit in the installed copy at
+`~/.config/blender/5.1/scripts/addons/phobos/blender/utils/selection.py`.
+
+### Upstream
+
+Same tracker as patches #1–#5. Patches #6–#8 are all on the inertial-creation
+path and were hit in sequence while adding an inertial to a duplicated link.
