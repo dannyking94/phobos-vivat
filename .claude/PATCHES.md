@@ -502,3 +502,74 @@ Same edit in the installed copy at
 
 Same tracker as patches #1–#5. Patches #6–#8 are all on the inertial-creation
 path and were hit in sequence while adding an inertial to a duplicated link.
+
+## 9. Collision fitter ignores object scale for primitive-type visuals
+
+**File:** `phobos/blender/operators/editing.py`
+**Class:** `CreateCollisionObjects.execute` (lines 1341, 1348, 1355)
+**Date applied:** 2026-06-08
+**Blender version:** 5.1.2
+**Phobos version:** master (post-2.1.0)
+
+### Symptom
+
+"Create Collision Object(s)" with type box/cylinder/sphere produces a
+correct collision when the source **visual is a mesh** (`geometry/type=mesh`),
+but a **wrongly-scaled and wrongly-oriented** collision when the visual is a
+**primitive** (`geometry/type=cylinder|box|sphere`). E.g. fitting a cylinder
+to a scaled cylinder-primitive wheel visual yields a radius-1 / length-2
+collision rotated 90° about Y, instead of the visual's actual size with no
+rotation.
+
+### Cause
+
+The operator passes the *geometry's* scale to the fitter:
+
+```python
+geometry, transform = geo.create_cylinder(vis, scale=getattr(phobos_vis.geometry, "scale", 1))
+```
+
+`deriveVisual` returns a `Mesh` geometry (which carries `.scale` = the object
+scale) for mesh visuals, but a `Cylinder`/`Box`/`Sphere` geometry (which
+encodes size as radius/length and has **no `.scale` attribute**) for primitive
+visuals. So `getattr(..., "scale", 1)` falls back to **1** for primitives, and
+`create_cylinder` builds from the raw **unit** mesh `bound_box` (2,2,2):
+
+- wrong scale — unit size instead of the scaled size, and
+- wrong orientation — a unit cylinder's bbox is a perfect cube, so the axis
+  heuristic `argmax(|extent - mean|)` is all-zeros → `np.argmax` returns 0 →
+  X is picked as the long axis and `rpy=[0, pi/2, 0]` is applied.
+
+Mesh visuals have non-uniform `.scale`, so the Z axis stands out and no
+rotation is applied — which is why mesh visuals worked.
+
+### Fix
+
+Pass the object's own scale (correct for both mesh and primitive visuals) in
+all three primitive branches:
+
+```python
+geometry, transform = geo.create_box(vis, scale=list(vis.scale), oriented=False)
+geometry, transform = geo.create_cylinder(vis, scale=list(vis.scale),)
+geometry, transform = geo.create_sphere(vis, scale=list(vis.scale),)
+```
+
+Verified headless: for a scaled cylinder-primitive visual this yields
+`radius=0.2197 length=0.2165` with an identity transform, identical to the
+working mesh-visual path.
+
+### Re-applying after a Phobos update
+
+```bash
+grep -n 'getattr(phobos_vis.geometry, "scale", 1)' ~/Apps/blender/phobos/phobos/blender/operators/editing.py
+```
+
+If that returns hits in `CreateCollisionObjects.execute`, replace each with
+`list(vis.scale)`. Same edit in the installed copy at
+`~/.config/blender/5.1/scripts/addons/phobos/blender/operators/editing.py`.
+
+### Upstream
+
+Same tracker as patches #1–#5. A more thorough upstream fix would also make
+the cube-bbox axis heuristic in `geometry.create_cylinder` deterministic
+(fall back to Z, or skip rotation, when extents are equal).

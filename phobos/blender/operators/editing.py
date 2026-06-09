@@ -1338,21 +1338,21 @@ class CreateCollisionObjects(Operator):
                     #     scale=getattr(phobos_vis, "scale", 1), oriented=self.property_optimized
                     # )
                     # geometry, transform = geo.create_box(vis, scale=getattr(phobos_vis, "scale", 1), oriented=self.property_optimized)
-                    geometry, transform = geo.create_box(vis, scale=getattr(phobos_vis.geometry, "scale", 1), oriented=False)
+                    geometry, transform = geo.create_box(vis, scale=list(vis.scale), oriented=False)
                 elif self.property_colltype == "cylinder":
                     # [TODO v2.1.0] Fix optimized creation see: Fix creation for Trimesh in geometry/geometry.py
                     # geometry, transform = geo.create_cylinder(
                     #     vis if not self.property_optimized else mesh_io.as_trimesh(vis.data),
                     #     scale=getattr(phobos_vis, "scale", 1),
                     # )
-                    geometry, transform = geo.create_cylinder(vis, scale=getattr(phobos_vis.geometry, "scale", 1),)
+                    geometry, transform = geo.create_cylinder(vis, scale=list(vis.scale),)
                 elif self.property_colltype == "sphere":
                     # [TODO v2.1.0] Fix optimized creation see: Fix creation for Trimesh in geometry/geometry.py
                     # geometry, transform = geo.create_sphere(
                     #     vis if not self.property_optimized else mesh_io.as_trimesh(vis.data),
                     #     scale=getattr(phobos_vis, "scale", 1),
                     # )
-                    geometry, transform = geo.create_sphere(vis, scale=getattr(phobos_vis.geometry, "scale", 1),)
+                    geometry, transform = geo.create_sphere(vis, scale=list(vis.scale),)
                 elif self.property_colltype == "convex":
                     geometry = blender2phobos.deriveGeometry(vis, duplicate_mesh=True)
                     geometry.to_convex_hull()
